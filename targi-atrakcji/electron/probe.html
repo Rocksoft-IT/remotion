@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<!-- Decode probe for `--check`. Loaded in a hidden window by main.js, never shown, never
+     served over the LAN. It answers one question per file: does THIS machine actually decode
+     it — not "does the file exist", which is all a path check can say. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; media-src file:; img-src file: data:" />
+<title>media probe</title>
+</head>
+<body>
+<script>
+  // Each item: { kind: 'video' | 'audio' | 'image', url }. One result per item, in order.
+  // A result is either { ok:true, duration, width, height, frames, dropped, firstFrameMs, probeMs }
+  // or { ok:false, code, error }.
+  window.probeAll = async function (items) {
+    const out = [];
+    for (const it of items) out.push(await probeOne(it));
+    return out;
+  };
+
+  function probeOne(it) {
+    if (it.kind === 'image') return probeImage(it);
+    return new Promise((resolve) => {
+      const el = document.createElement(it.kind === 'audio' ? 'audio' : 'video');
+      el.preload = 'auto';
+      el.muted = true;            // the desk must stay silent while this runs
+      el.playsInline = true;
+      const t0 = performance.now();
+      let done = false;
+      const finish = (r) => { if (done) return; done = true; clearTimeout(timer); try { el.pause(); el.removeAttribute('src'); el.load(); } catch {} el.remove(); resolve(r); };
+      const timer = setTimeout(() => finish({ ok: false, code: null, error: 'no metadata after 10 s — file is enormous, on a slow drive, or the decoder is stuck' }), 10000);
+
+      el.onerror = () => { const e = el.error; finish({ ok: false, code: e ? e.code : null, error: e ? e.message || '' : 'unknown error' }); };
+
+      el.onloadedmetadata = () => {
+        const meta = { duration: el.duration, width: el.videoWidth || null, height: el.videoHeight || null };
+        // Metadata proves the container parses. Frames prove the codec decodes — so play,
+        // muted, for up to a second and count what actually came out.
+        let firstFrameMs = null;
+        const started = performance.now();
+        const quality = () => { try { return el.getVideoPlaybackQuality ? el.getVideoPlaybackQuality() : null; } catch { return null; } };
+        el.addEventListener('playing', () => { firstFrameMs = Math.round(performance.now() - started); }, { once: true });
+        el.play().catch((e) => finish({ ok: false, code: null, error: `play() refused: ${e.message}` }));
+        const poll = setInterval(() => {
+          const q = quality();
+          const frames = q ? q.totalVideoFrames : null;
+          const ran = performance.now() - started;
+          const enough = it.kind === 'audio' ? el.currentTime > 0.2 : (frames != null && frames >= 12);
+          if (enough || ran > 1500) {
+            clearInterval(poll);
+            finish({ ok: true, ...meta, frames: frames || 0, dropped: q ? q.droppedVideoFrames : 0, firstFrameMs, probeMs: Math.round(ran) });
+          }
+        }, 50);
+      };
+
+      el.src = it.url;
+      document.body.appendChild(el);
+    });
+  }
+
+  // Images: does the decoder accept the file at all, and at what pixel size? A path check
+  // cannot tell a real PNG from a renamed one, and the wall is where you find out.
+  function probeImage(it) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const t0 = performance.now();
+      const timer = setTimeout(() => resolve({ ok: false, code: null, error: 'still decoding after 10 s — the file is enormous or damaged' }), 10000);
+      img.onload = () => { clearTimeout(timer); resolve({ ok: true, width: img.naturalWidth, height: img.naturalHeight, probeMs: Math.round(performance.now() - t0) }); };
+      img.onerror = () => { clearTimeout(timer); resolve({ ok: false, code: null, error: 'the decoder refused this file (wrong format, or the extension does not match the contents)' }); };
+      img.src = it.url;
+    });
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "name": "targi-atrakcji-slajdy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "description": "Slajdy sceniczne: I Targi Atrakcji Slaska Cieszynskiego, 24.09.2026, Konfero Ustron",
+  "scripts": {
+    "pulpit": "vite",
+    "pulpit:build": "vite build",
+    "studio": "remotion studio --port 3001",
+    "render": "node scripts/render.mjs",
+    "still": "node scripts/still.mjs",
+    "todo": "grep -n \"TODO:\" slides.ts || echo 'Brak TODO. Dane domkniete.'",
+    "sync-assets": "node scripts/sync-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "upgrade": "remotion upgrade",
+    "start": "npm run pulpit:build && electron .",
+    "electron": "electron .",
+    "import-talk": "node scripts/import-talk.mjs"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.523",
+    "@remotion/cli": "4.0.523",
+    "@remotion/google-fonts": "4.0.523",
+    "@remotion/player": "^4.0.523",
+    "@remotion/renderer": "4.0.523",
+    "qrcode-generator": "2.0.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.523"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "electron": "^31.7.7",
+    "tsx": "^4.23.13",
+    "typescript": "5.9.3",
+    "vite": "^8.2.2"
+  }
+}
